@@ -7,9 +7,13 @@ Edit these values to match your setup and data requirements
 # PATHS
 # =============================================================================
 
-BASE_DATA_PATH = '/export02/projects/LCS/01_physio'
+# Path to raw physiological data files (.acq or .csv format)
+# Expected structure: BASE_DATA_PATH/sub-{id}/ses-{id}/sub-{id}_ses-{id}_task-{task}_physio.acq
+BASE_DATA_PATH = '/path/to/your/physio/data'
 
-OUTPUT_BASE_PATH = '/export02/projects/LCS/02_physio_processed'
+# Path where processed data will be saved (CSV + JSON)
+# Output structure: OUTPUT_BASE_PATH/sub-{id}/ses-{id}/sub-{id}_ses-{id}_task-{task}_physio.{csv,json}
+OUTPUT_BASE_PATH = '/path/to/output/processed/data'
 
 # =============================================================================
 # DATA PARAMETERS

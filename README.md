@@ -1,6 +1,6 @@
 # Physio QC
 
-Quality control tool for physiological signals from Long COVID research project. Interactive Streamlit application for processing and manually editing ECG, RSP, PPG, and blood pressure signals.
+Interactive Streamlit application for quality control and processing of physiological signals (ECG, RSP, PPG, and blood pressure). Provides manual editing capabilities and comprehensive quality metrics for research and clinical applications.
 
 ## Features
 
@@ -85,9 +85,9 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for detailed development instructions.
 Edit `config.py` to customize:
 
 ```python
-# Data paths
-BASE_DATA_PATH = '/export02/projects/LCS/01_physio'
-OUTPUT_BASE_PATH = '/export02/projects/LCS/02_physio_processed'
+# Data paths (update these to match your setup)
+BASE_DATA_PATH = '/path/to/your/physio/data'
+OUTPUT_BASE_PATH = '/path/to/output/processed/data'
 
 # Processing parameters
 SAMPLING_RATE = 250
@@ -222,6 +222,18 @@ physio-qc/
     ├── peak_editing.py        # Manual peak editing logic
     └── export.py              # CSV and JSON export functions
 ```
+
+## Acknowledgments
+
+This project relies heavily on [NeuroKit2](https://neuropsychology.github.io/NeuroKit/), an open-source Python toolbox for neurophysiological signal processing. Many of the signal processing algorithms are built on or inspired by NeuroKit2's implementations:
+
+- **ECG Processing**: [NeuroKit2 ECG Functions](https://neuropsychology.github.io/NeuroKit/functions/ecg.html)
+- **Respiration (RSP) Processing**: [NeuroKit2 RSP Functions](https://neuropsychology.github.io/NeuroKit/functions/rsp.html)
+- **PPG Processing**: [NeuroKit2 PPG Functions](https://neuropsychology.github.io/NeuroKit/functions/ppg.html)
+
+If you use this tool in your research, please also cite NeuroKit2:
+
+> Makowski, D., Pham, T., Lau, Z. J., Brammer, J. C., Lespinasse, F., Pham, H., Schölzel, C., & Chen, S. A. (2021). NeuroKit2: A Python toolbox for neurophysiological signal processing. Behavior Research Methods, 53(4), 1689-1696. https://doi.org/10.3758/s13428-020-01516-y
 
 ## Troubleshooting
 
