@@ -3,68 +3,70 @@
 Generate README.md from README.md.in template.
 Inserts auto-generated content like module structure.
 """
+import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 
 def get_module_tree() -> str:
-    """Generate module tree using pypatree."""
-    try:
-        # Try to run pypatree on each module
-        modules = ['metrics', 'algorithms', 'utils']
-        output_lines = ['```']
+    """Generate module tree dynamically using pypatree."""
+    repo_root = Path(__file__).parent.parent
 
-        for module in modules:
+    # Try pypatree with uv (preferred - uses project's venv)
+    if shutil.which('uv'):
+        try:
             result = subprocess.run(
-                [sys.executable, '-m', 'pypatree', module, '--docstrings', 'none'],
+                ['uv', 'run', 'pypatree', '--docstrings', 'none'],
                 capture_output=True,
                 text=True,
-                cwd=Path(__file__).parent.parent
+                cwd=repo_root
             )
             if result.returncode == 0 and result.stdout.strip():
-                output_lines.append(result.stdout.strip())
+                return f'```\n{result.stdout.strip()}\n```'
+        except Exception as e:
+            print(f"uv run pypatree failed: {e}", file=sys.stderr)
 
-        output_lines.append('```')
-
-        if len(output_lines) > 2:  # More than just the backticks
-            return '\n'.join(output_lines)
-        else:
-            # Fallback to simple structure
-            return """```
-physio-qc/
-├── metrics/          # Signal processing modules
-│   ├── ecg.py
-│   ├── rsp.py
-│   ├── ppg.py
-│   └── blood_pressure.py
-├── algorithms/       # Specialized algorithms
-│   ├── bp_delineator.py
-│   └── quality_detection.py
-└── utils/           # Utilities
-    ├── file_io.py
-    ├── peak_editing.py
-    └── export.py
-```"""
+    # Try pypatree directly (if installed globally/user)
+    try:
+        result = subprocess.run(
+            [sys.executable, '-m', 'pypatree', '--docstrings', 'none'],
+            capture_output=True,
+            text=True,
+            cwd=repo_root,
+            env={**os.environ, 'PYTHONPATH': str(repo_root)}
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return f'```\n{result.stdout.strip()}\n```'
     except Exception as e:
-        print(f"Warning: Could not generate module tree: {e}", file=sys.stderr)
-        # Fallback structure
-        return """```
-physio-qc/
-├── metrics/          # Signal processing modules
-│   ├── ecg.py
-│   ├── rsp.py
-│   ├── ppg.py
-│   └── blood_pressure.py
-├── algorithms/       # Specialized algorithms
-│   ├── bp_delineator.py
-│   └── quality_detection.py
-└── utils/           # Utilities
-    ├── file_io.py
-    ├── peak_editing.py
-    └── export.py
-```"""
+        print(f"pypatree failed: {e}", file=sys.stderr)
+
+    # Fallback: Use filesystem scan
+    # This dynamically generates the tree by actually reading the directories
+    lines = ['```', 'physio-qc/']
+
+    modules = ['metrics', 'algorithms', 'utils']
+    for i, module_dir in enumerate(modules):
+        is_last_module = (i == len(modules) - 1)
+        module_path = repo_root / module_dir
+
+        if module_path.exists():
+            prefix = '└──' if is_last_module else '├──'
+            lines.append(f'{prefix} {module_dir}/')
+
+            # List .py files in module (dynamically scanned from filesystem)
+            py_files = sorted([f.name for f in module_path.glob('*.py') if f.name != '__init__.py'])
+            for j, py_file in enumerate(py_files):
+                is_last_file = (j == len(py_files) - 1)
+                file_prefix = '    └──' if is_last_file else '    ├──'
+                if not is_last_module:
+                    file_prefix = '│' + file_prefix
+                lines.append(f'{file_prefix} {py_file}')
+
+    lines.append('```')
+    return '\n'.join(lines)
 
 
 def generate_readme():

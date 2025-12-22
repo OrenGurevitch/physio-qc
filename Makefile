@@ -64,4 +64,4 @@ dev:  ## Setup development environment
 	@make install-dev
 
 readme:  ## Regenerate README.md from template
-	python3 scripts/generate_readme.py
+	@command -v uv >/dev/null 2>&1 && uv run python scripts/generate_readme.py || python3 scripts/generate_readme.py
