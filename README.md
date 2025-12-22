@@ -134,11 +134,8 @@ utils
 
 ## Screenshots
 
-### ECG Processing Interface
+### ECG Processing
 ![ECG Interface](media/ecg_menu.png)
-
-### ECG Visualization
-![ECG Visualization](media/ecg_visualization.png)
 
 ### Manual Peak Editing
 ![Peak Editing](media/edit_peaks_menu.png)
@@ -156,7 +153,7 @@ This project relies heavily on [NeuroKit2](https://neuropsychology.github.io/Neu
 
 ---
 
-Documentation generated using [pypatree](https://github.com/yberreby/pypatree) by Yoann Berreby.
+Documentation generated using [pypatree](https://github.com/yberreby/pypatree).
 
 ## License
 
