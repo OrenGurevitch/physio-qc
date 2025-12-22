@@ -51,58 +51,80 @@ SAMPLING_RATE = 250
 ```
 algorithms
 ├── bp_delineator
-│   └── delineate_bp(signal, fs, do_filter=True, filter_cutoff_hz=25.0, smooth_win_s=0.02)
+│   └── delineate_bp(signal, fs, do_filter=True, filter_cutoff_hz=25.0, 
+│       smooth_win_s=0.02)
 └── quality_detection
-    ├── detect_calibration_artifacts(signal, fs, thr_norm=0.03, min_dur_s=2.0, lp_cutoff_hz=15.0, dp_ma_s=0.05, dp_med_s=0.15, pad_s=0.1, normalize=True)
-    ├── detect_high_derivative_regions(dp_plot, fs, thr=0.95, min_dur_s=0.15, pad_s=0.01)
+    ├── detect_calibration_artifacts(signal, fs, thr_norm=0.03, min_dur_s=2.0, 
+    │   lp_cutoff_hz=15.0, dp_ma_s=0.05, dp_med_s=0.15, pad_s=0.1, 
+    │   normalize=True)
+    ├── detect_high_derivative_regions(dp_plot, fs, thr=0.95, min_dur_s=0.15, 
+    │   pad_s=0.01)
     └── filter_indices_outside_regions(indices, region_starts, region_ends)
 metrics
 ├── blood_pressure
 │   ├── calculate_bp_metrics(signal, peaks, troughs)
-│   ├── detect_bp_peaks(signal, sampling_rate, method='delineator', prominence=10)
-│   ├── filter_bp(signal, sampling_rate, method='bessel_25hz', filter_order=3, cutoff_freq=25, filter_type='butterworth', lowcut=0.5, highcut=15.0, 
+│   ├── detect_bp_peaks(signal, sampling_rate, method='delineator', 
+│   │   prominence=10)
+│   ├── filter_bp(signal, sampling_rate, method='bessel_25hz', filter_order=3, 
+│   │   cutoff_freq=25, filter_type='butterworth', lowcut=0.5, highcut=15.0, 
 │   │   apply_lowcut=True, apply_highcut=True)
 │   └── process_bp(signal, sampling_rate, params)
 ├── ecg
 │   ├── calculate_ecg_quality(signal, r_peaks, sampling_rate)
-│   ├── calculate_hr(r_peaks, sampling_rate, signal_length, rate_method='monotone_cubic')
-│   ├── clean_ecg(signal, sampling_rate, method='neurokit', powerline=60, lowcut=0.5, highcut=45.0, filter_type='butterworth', filter_order=5, apply_lowcut=True,
-│   │   apply_highcut=True)
-│   ├── detect_r_peaks(signal, sampling_rate, method='neurokit', correct_artifacts=False)
+│   ├── calculate_hr(r_peaks, sampling_rate, signal_length, 
+│   │   rate_method='monotone_cubic')
+│   ├── clean_ecg(signal, sampling_rate, method='neurokit', powerline=60, 
+│   │   lowcut=0.5, highcut=45.0, filter_type='butterworth', filter_order=5, 
+│   │   apply_lowcut=True, apply_highcut=True)
+│   ├── detect_r_peaks(signal, sampling_rate, method='neurokit', 
+│   │   correct_artifacts=False)
 │   └── process_ecg(signal, sampling_rate, params)
 ├── ppg
-│   ├── calculate_hr_from_ppg(ppg_peaks, sampling_rate, signal_length, rate_method='monotone_cubic')
+│   ├── calculate_hr_from_ppg(ppg_peaks, sampling_rate, signal_length, 
+│   │   rate_method='monotone_cubic')
 │   ├── calculate_ppg_quality(signal, sampling_rate)
-│   ├── clean_ppg(signal, sampling_rate, method='elgendi', lowcut=0.5, highcut=8.0, filter_type='butterworth', filter_order=5, apply_lowcut=True, 
-│   │   apply_highcut=True)
-│   ├── detect_ppg_peaks(signal, sampling_rate, method='elgendi', correct_artifacts=False)
+│   ├── clean_ppg(signal, sampling_rate, method='elgendi', lowcut=0.5, 
+│   │   highcut=8.0, filter_type='butterworth', filter_order=5, 
+│   │   apply_lowcut=True, apply_highcut=True)
+│   ├── detect_ppg_peaks(signal, sampling_rate, method='elgendi', 
+│   │   correct_artifacts=False)
 │   └── process_ppg(signal, sampling_rate, params)
 └── rsp
-    ├── calculate_breathing_rate(troughs, sampling_rate, signal_length, rate_method='monotone_cubic')
-    ├── clean_rsp(signal, sampling_rate, method='khodadad2018', lowcut=0.05, highcut=3.0, filter_type='butterworth', filter_order=5, apply_lowcut=True, 
-    │   apply_highcut=True)
+    ├── calculate_breathing_rate(troughs, sampling_rate, signal_length, 
+    │   rate_method='monotone_cubic')
+    ├── clean_rsp(signal, sampling_rate, method='khodadad2018', lowcut=0.05, 
+    │   highcut=3.0, filter_type='butterworth', filter_order=5, 
+    │   apply_lowcut=True, apply_highcut=True)
     ├── detect_breath_peaks(signal, sampling_rate, amplitude_method='robust')
     └── process_rsp(signal, sampling_rate, params)
 utils
 ├── export
 │   ├── create_combined_dataframe(results_dict, sampling_rate)
 │   ├── create_metadata_json(results_dict, params_dict, sampling_rate)
-│   └── export_physio_data(output_path, participant, session, task, df, metadata)
+│   └── export_physio_data(output_path, participant, session, task, df, 
+│       metadata)
 ├── file_io
 │   ├── detect_signal_type(column_name)
 │   ├── find_file_path(base_path, participant, session, task)
 │   ├── load_acq_file(file_path)
 │   └── scan_data_directory(base_path)
 └── peak_editing
-    ├── add_peak(signal, current_peaks, click_time, sampling_rate, window_seconds=None)
-    ├── add_peaks_in_range(signal, current_peaks, time_start, time_end, sampling_rate, min_distance_seconds=0.3)
-    ├── add_trough(signal, current_troughs, click_time, sampling_rate, window_seconds=None)
-    ├── add_troughs_in_range(signal, current_troughs, time_start, time_end, sampling_rate, min_distance_seconds=0.3)
+    ├── add_peak(signal, current_peaks, click_time, sampling_rate, 
+    │   window_seconds=None)
+    ├── add_peaks_in_range(signal, current_peaks, time_start, time_end, 
+    │   sampling_rate, min_distance_seconds=0.3)
+    ├── add_trough(signal, current_troughs, click_time, sampling_rate, 
+    │   window_seconds=None)
+    ├── add_troughs_in_range(signal, current_troughs, time_start, time_end, 
+    │   sampling_rate, min_distance_seconds=0.3)
     ├── calculate_peak_delta(auto_peaks, current_peaks, signal_length)
-    ├── delete_peak(current_peaks, click_time, sampling_rate, tolerance_seconds=None)
-    ├── delete_trough(current_troughs, click_time, sampling_rate, tolerance_seconds=None)
+    ├── delete_peak(current_peaks, click_time, sampling_rate, 
+    │   tolerance_seconds=None)
+    ├── delete_trough(current_troughs, click_time, sampling_rate, 
+    │   tolerance_seconds=None)
     ├── erase_peaks_in_range(current_peaks, time_start, time_end, sampling_rate)
-    ├── erase_troughs_in_range(current_troughs, time_start, time_end, sampling_rate)
+    ├── erase_troughs_in_range(current_troughs, time_start, time_end, 
+    │   sampling_rate)
     ├── find_local_maximum(signal, center_idx, window_samples)
     ├── find_local_minimum(signal, center_idx, window_samples)
     └── get_edited_peaks_info(auto_peaks, current_peaks)
@@ -112,8 +134,11 @@ utils
 
 ## Screenshots
 
-### ECG Processing
+### ECG Processing Interface
 ![ECG Interface](media/ecg_menu.png)
+
+### ECG Visualization
+![ECG Visualization](media/ecg_visualization.png)
 
 ### Manual Peak Editing
 ![Peak Editing](media/edit_peaks_menu.png)
@@ -128,6 +153,10 @@ This project relies heavily on [NeuroKit2](https://neuropsychology.github.io/Neu
 
 **Citation:**
 > Makowski, D., Pham, T., Lau, Z. J., Brammer, J. C., Lespinasse, F., Pham, H., Schölzel, C., & Chen, S. A. (2021). NeuroKit2: A Python toolbox for neurophysiological signal processing. *Behavior Research Methods*, 53(4), 1689-1696. https://doi.org/10.3758/s13428-020-01516-y
+
+---
+
+Documentation generated using [pypatree](https://github.com/yberreby/pypatree) by Yoann Berreby.
 
 ## License
 
