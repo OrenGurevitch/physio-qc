@@ -62,3 +62,6 @@ setup:  ## First-time setup
 
 dev:  ## Setup development environment
 	@make install-dev
+
+readme:  ## Regenerate README.md from template
+	python3 scripts/generate_readme.py
