@@ -99,8 +99,13 @@ def init_session_state():
 
 def create_signal_plot(time, raw, clean, current_peaks, auto_peaks, signal_name, sampling_rate,
                        hr_interpolated=None, hr_bpm=None, quality_continuous=None,
-                       selected_quality_metrics=None, quality_data=None, ui_revision='constant'):
-    """Create 3-panel plot for signal visualization with synchronized zooming"""
+                       selected_quality_metrics=None, quality_data=None, ui_revision='constant',
+                       zoom_range=None):
+    """Create 3-panel plot for signal visualization with synchronized zooming
+
+    Args:
+        zoom_range: Optional tuple (start, end) to set the x-axis zoom range in seconds
+    """
     deleted_peaks = np.setdiff1d(auto_peaks, current_peaks)
     added_peaks = np.setdiff1d(current_peaks, auto_peaks)
 
@@ -190,6 +195,10 @@ def create_signal_plot(time, raw, clean, current_peaks, auto_peaks, signal_name,
     # Synchronize x-axes across all subplots
     fig.update_xaxes(matches='x')
 
+    # Apply zoom range if specified
+    if zoom_range is not None:
+        fig.update_xaxes(range=[zoom_range[0], zoom_range[1]])
+
     fig.update_layout(
         height=800,
         template='plotly_dark',
@@ -201,8 +210,12 @@ def create_signal_plot(time, raw, clean, current_peaks, auto_peaks, signal_name,
     return fig
 
 
-def create_rsp_bp_plot(time, raw, clean, current_peaks, current_troughs, auto_peaks, auto_troughs, signal_name, rate_interpolated=None, rate_bpm=None, map_values=None, ui_revision='constant'):
-    """Create 3-panel plot for RSP/BP with both peaks and troughs and synchronized zooming"""
+def create_rsp_bp_plot(time, raw, clean, current_peaks, current_troughs, auto_peaks, auto_troughs, signal_name, rate_interpolated=None, rate_bpm=None, map_values=None, ui_revision='constant', zoom_range=None):
+    """Create 3-panel plot for RSP/BP with both peaks and troughs and synchronized zooming
+
+    Args:
+        zoom_range: Optional tuple (start, end) to set the x-axis zoom range in seconds
+    """
     deleted_peaks = np.setdiff1d(auto_peaks, current_peaks)
     added_peaks = np.setdiff1d(current_peaks, auto_peaks)
     deleted_troughs = np.setdiff1d(auto_troughs, current_troughs)
@@ -306,6 +319,10 @@ def create_rsp_bp_plot(time, raw, clean, current_peaks, current_troughs, auto_pe
     # Synchronize x-axes across all subplots
     fig.update_xaxes(matches='x')
 
+    # Apply zoom range if specified
+    if zoom_range is not None:
+        fig.update_xaxes(range=[zoom_range[0], zoom_range[1]])
+
     fig.update_layout(
         height=800,
         template='plotly_dark',
@@ -326,10 +343,46 @@ def main():
     with st.sidebar:
         st.header("Data Selection")
 
+        # Check if data path exists and provide override option
+        import os
+        data_path_exists = os.path.isdir(config.BASE_DATA_PATH)
+
+        if not data_path_exists:
+            st.warning(f"⚠️ Default data path doesn't exist:\n`{config.BASE_DATA_PATH}`")
+
+            with st.expander("🔧 Configure Data Paths", expanded=True):
+                st.info("Update the paths below to point to your data directories, then click Apply.")
+
+                # Allow user to override paths
+                custom_data_path = st.text_input(
+                    "Data Path",
+                    value=config.BASE_DATA_PATH,
+                    help="Path to raw physiological data files"
+                )
+
+                custom_output_path = st.text_input(
+                    "Output Path",
+                    value=config.OUTPUT_BASE_PATH,
+                    help="Path where processed data will be saved"
+                )
+
+                if st.button("Apply Paths", type="primary"):
+                    if os.path.isdir(custom_data_path):
+                        config.BASE_DATA_PATH = custom_data_path
+                        config.OUTPUT_BASE_PATH = custom_output_path
+                        st.success("✅ Paths updated! Scanning for data...")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Path doesn't exist: {custom_data_path}")
+
+                st.stop()
+
         participants_data = scan_data_directory(config.BASE_DATA_PATH)
 
         if not participants_data:
             st.error(f"No data found in {config.BASE_DATA_PATH}")
+            st.info("Make sure your data follows the expected structure:\n"
+                    "`sub-{id}/ses-{id}/sub-{id}_ses-{id}_task-{task}_physio.{acq,csv}`")
             return
 
         participants = list(participants_data.keys())
@@ -543,6 +596,15 @@ def main():
                     'quality_averageqrs': result.get('quality_averageqrs')
                 }
 
+                # Initialize region range in session state if not exists (needed before plotting)
+                if 'ecg_region_start' not in st.session_state:
+                    st.session_state.ecg_region_start = 0.0
+                if 'ecg_region_end' not in st.session_state:
+                    st.session_state.ecg_region_end = min(10.0, float(time[-1]))
+
+                # Get zoom range from session state
+                ecg_zoom = (st.session_state.ecg_region_start, st.session_state.ecg_region_end)
+
                 fig = create_signal_plot(
                     time, result['raw'], result['clean'],
                     result['current_r_peaks'], result['auto_r_peaks'],
@@ -551,19 +613,14 @@ def main():
                     hr_bpm=result.get('hr_bpm'),
                     selected_quality_metrics=selected_quality_metrics,
                     quality_data=quality_data,
-                    ui_revision='ecg_plot'  # Preserve zoom state
+                    ui_revision='ecg_plot',  # Preserve zoom state
+                    zoom_range=ecg_zoom  # Apply zoom from region inputs
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
 
                 # Drag-based editing interface
                 st.subheader("Drag-Based Peak Editing")
-
-                # Initialize region range in session state if not exists
-                if 'ecg_region_start' not in st.session_state:
-                    st.session_state.ecg_region_start = 0.0
-                if 'ecg_region_end' not in st.session_state:
-                    st.session_state.ecg_region_end = min(10.0, float(time[-1]))
 
                 # Quick navigation buttons
                 st.write("**Quick Range Selection:**")
@@ -777,6 +834,15 @@ def main():
                     result['mean_br'] = 0.0
                     result['std_br'] = 0.0
 
+                # Initialize region range in session state if not exists (needed before plotting)
+                if 'rsp_region_start' not in st.session_state:
+                    st.session_state.rsp_region_start = 0.0
+                if 'rsp_region_end' not in st.session_state:
+                    st.session_state.rsp_region_end = min(10.0, float(time[-1]))
+
+                # Get zoom range from session state
+                rsp_zoom = (st.session_state.rsp_region_start, st.session_state.rsp_region_end)
+
                 fig = create_rsp_bp_plot(
                     time, result['raw'], result['clean'],
                     result['current_peaks'], result['current_troughs'],
@@ -784,34 +850,81 @@ def main():
                     'RSP',
                     rate_interpolated=result.get('br_interpolated'),
                     rate_bpm=result.get('br_bpm'),
-                    ui_revision='rsp_plot'  # Preserve zoom state
+                    ui_revision='rsp_plot',  # Preserve zoom state
+                    zoom_range=rsp_zoom  # Apply zoom from region inputs
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
 
                 # Drag-based editing interface
                 st.subheader("Drag-Based Breath Editing")
-                st.info("📌 Use the plot above to zoom and identify the time range, then specify the range below and choose an action.")
 
+                # Quick navigation buttons
+                st.write("**Quick Range Selection:**")
+                col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
+                with col_btn1:
+                    if st.button("⏮️ First 10s", key='rsp_first_10s'):
+                        st.session_state.rsp_region_start = 0.0
+                        st.session_state.rsp_region_end = min(10.0, float(time[-1]))
+                        st.rerun()
+                with col_btn2:
+                    if st.button("◀️ Previous 10s", key='rsp_prev_10s'):
+                        window = 10.0
+                        new_start = max(0.0, st.session_state.rsp_region_start - window)
+                        new_end = max(window, st.session_state.rsp_region_end - window)
+                        st.session_state.rsp_region_start = new_start
+                        st.session_state.rsp_region_end = min(new_end, float(time[-1]))
+                        st.rerun()
+                with col_btn3:
+                    if st.button("▶️ Next 10s", key='rsp_next_10s'):
+                        window = 10.0
+                        new_start = min(float(time[-1]) - window, st.session_state.rsp_region_start + window)
+                        new_end = min(float(time[-1]), st.session_state.rsp_region_end + window)
+                        st.session_state.rsp_region_start = new_start
+                        st.session_state.rsp_region_end = new_end
+                        st.rerun()
+                with col_btn4:
+                    if st.button("⏭️ Last 10s", key='rsp_last_10s'):
+                        st.session_state.rsp_region_start = max(0.0, float(time[-1]) - 10.0)
+                        st.session_state.rsp_region_end = float(time[-1])
+                        st.rerun()
+                with col_btn5:
+                    if st.button("🔄 Reset Range", key='rsp_reset_range'):
+                        st.session_state.rsp_region_start = 0.0
+                        st.session_state.rsp_region_end = min(10.0, float(time[-1]))
+                        st.rerun()
+
+                st.write("**Manual Range Entry:** (Or look at zoomed plot X-axis and enter values)")
                 col1, col2 = st.columns(2)
                 with col1:
                     region_start = st.number_input(
                         "Region Start (s)",
                         min_value=0.0,
                         max_value=float(time[-1]),
-                        value=0.0,
+                        value=float(st.session_state.rsp_region_start),
                         step=1.0,
-                        key='rsp_region_start'
+                        format="%.2f",
+                        key='rsp_region_start_input',
+                        help="Enter the start time from the zoomed plot's X-axis, or use quick buttons above"
                     )
+                    # Update session state
+                    st.session_state.rsp_region_start = region_start
                 with col2:
                     region_end = st.number_input(
                         "Region End (s)",
                         min_value=0.0,
                         max_value=float(time[-1]),
-                        value=min(10.0, float(time[-1])),
+                        value=float(st.session_state.rsp_region_end),
                         step=1.0,
-                        key='rsp_region_end'
+                        format="%.2f",
+                        key='rsp_region_end_input',
+                        help="Enter the end time from the zoomed plot's X-axis, or use quick buttons above"
                     )
+                    # Update session state
+                    st.session_state.rsp_region_end = region_end
+
+                # Show current range info
+                st.caption(f"Current range: {region_start:.2f}s to {region_end:.2f}s ({region_end - region_start:.2f}s window) | Full signal: {float(time[-1]):.2f}s")
 
                 st.write("**Inhalation Peaks:**")
                 col1, col2, col3 = st.columns(3)
@@ -976,43 +1089,96 @@ def main():
                     result['mean_hr'] = 0.0
                     result['std_hr'] = 0.0
 
+                # Initialize region range in session state if not exists (needed before plotting)
+                if 'ppg_region_start' not in st.session_state:
+                    st.session_state.ppg_region_start = 0.0
+                if 'ppg_region_end' not in st.session_state:
+                    st.session_state.ppg_region_end = min(10.0, float(time[-1]))
+
+                # Get zoom range from session state
+                ppg_zoom = (st.session_state.ppg_region_start, st.session_state.ppg_region_end)
+
                 fig = create_signal_plot(
                     time, result['raw'], result['clean'],
                     result['current_peaks'], result['auto_peaks'],
                     'PPG', sampling_rate,
                     hr_interpolated=result.get('hr_interpolated'),
                     hr_bpm=result.get('hr_bpm'),
-                    ui_revision='ppg_plot'  # Preserve zoom state
+                    ui_revision='ppg_plot',  # Preserve zoom state
+                    zoom_range=ppg_zoom  # Apply zoom from region inputs
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
 
                 # Drag-based editing interface
                 st.subheader("Drag-Based Peak Editing")
-                st.info("📌 Use the plot above to zoom and identify the time range, then specify the range below and choose an action.")
 
-                col1, col2, col3 = st.columns(3)
+                # Quick navigation buttons
+                st.write("**Quick Range Selection:**")
+                col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
+                with col_btn1:
+                    if st.button("⏮️ First 10s", key='ppg_first_10s'):
+                        st.session_state.ppg_region_start = 0.0
+                        st.session_state.ppg_region_end = min(10.0, float(time[-1]))
+                        st.rerun()
+                with col_btn2:
+                    if st.button("◀️ Previous 10s", key='ppg_prev_10s'):
+                        window = 10.0
+                        new_start = max(0.0, st.session_state.ppg_region_start - window)
+                        new_end = max(window, st.session_state.ppg_region_end - window)
+                        st.session_state.ppg_region_start = new_start
+                        st.session_state.ppg_region_end = min(new_end, float(time[-1]))
+                        st.rerun()
+                with col_btn3:
+                    if st.button("▶️ Next 10s", key='ppg_next_10s'):
+                        window = 10.0
+                        new_start = min(float(time[-1]) - window, st.session_state.ppg_region_start + window)
+                        new_end = min(float(time[-1]), st.session_state.ppg_region_end + window)
+                        st.session_state.ppg_region_start = new_start
+                        st.session_state.ppg_region_end = new_end
+                        st.rerun()
+                with col_btn4:
+                    if st.button("⏭️ Last 10s", key='ppg_last_10s'):
+                        st.session_state.ppg_region_start = max(0.0, float(time[-1]) - 10.0)
+                        st.session_state.ppg_region_end = float(time[-1])
+                        st.rerun()
+                with col_btn5:
+                    if st.button("🔄 Reset Range", key='ppg_reset_range'):
+                        st.session_state.ppg_region_start = 0.0
+                        st.session_state.ppg_region_end = min(10.0, float(time[-1]))
+                        st.rerun()
+
+                st.write("**Manual Range Entry:** (Or look at zoomed plot X-axis and enter values)")
+                col1, col2 = st.columns(2)
                 with col1:
                     region_start = st.number_input(
                         "Region Start (s)",
                         min_value=0.0,
                         max_value=float(time[-1]),
-                        value=0.0,
+                        value=float(st.session_state.ppg_region_start),
                         step=1.0,
-                        key='ppg_region_start'
+                        format="%.2f",
+                        key='ppg_region_start_input',
+                        help="Enter the start time from the zoomed plot's X-axis, or use quick buttons above"
                     )
+                    # Update session state
+                    st.session_state.ppg_region_start = region_start
                 with col2:
                     region_end = st.number_input(
                         "Region End (s)",
                         min_value=0.0,
                         max_value=float(time[-1]),
-                        value=min(10.0, float(time[-1])),
+                        value=float(st.session_state.ppg_region_end),
                         step=1.0,
-                        key='ppg_region_end'
+                        format="%.2f",
+                        key='ppg_region_end_input',
+                        help="Enter the end time from the zoomed plot's X-axis, or use quick buttons above"
                     )
-                with col3:
-                    st.write("")  # Spacing
-                    st.write("")  # Spacing
+                    # Update session state
+                    st.session_state.ppg_region_end = region_end
+
+                # Show current range info
+                st.caption(f"Current range: {region_start:.2f}s to {region_end:.2f}s ({region_end - region_start:.2f}s window) | Full signal: {float(time[-1]):.2f}s")
 
                 st.write("**Choose Action:**")
                 col1, col2, col3 = st.columns(3)
@@ -1185,40 +1351,96 @@ def main():
                 else:
                     map_interpolated = np.zeros(len(time))
 
+                # Initialize region range in session state if not exists (needed before plotting)
+                if 'bp_region_start' not in st.session_state:
+                    st.session_state.bp_region_start = 0.0
+                if 'bp_region_end' not in st.session_state:
+                    st.session_state.bp_region_end = min(10.0, float(time[-1]))
+
+                # Get zoom range from session state
+                bp_zoom = (st.session_state.bp_region_start, st.session_state.bp_region_end)
+
                 fig = create_rsp_bp_plot(
                     time, result['raw'], result['filtered'],
                     result['current_peaks'], result['current_troughs'],
                     result['auto_peaks'], result['auto_troughs'],
                     'BP',
                     map_values=map_interpolated,
-                    ui_revision='bp_plot'  # Preserve zoom state
+                    ui_revision='bp_plot',  # Preserve zoom state
+                    zoom_range=bp_zoom  # Apply zoom from region inputs
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
 
                 # Drag-based editing interface
                 st.subheader("Drag-Based Blood Pressure Editing")
-                st.info("📌 Use the plot above to zoom and identify the time range, then specify the range below and choose an action.")
 
+                # Quick navigation buttons
+                st.write("**Quick Range Selection:**")
+                col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
+                with col_btn1:
+                    if st.button("⏮️ First 10s", key='bp_first_10s'):
+                        st.session_state.bp_region_start = 0.0
+                        st.session_state.bp_region_end = min(10.0, float(time[-1]))
+                        st.rerun()
+                with col_btn2:
+                    if st.button("◀️ Previous 10s", key='bp_prev_10s'):
+                        window = 10.0
+                        new_start = max(0.0, st.session_state.bp_region_start - window)
+                        new_end = max(window, st.session_state.bp_region_end - window)
+                        st.session_state.bp_region_start = new_start
+                        st.session_state.bp_region_end = min(new_end, float(time[-1]))
+                        st.rerun()
+                with col_btn3:
+                    if st.button("▶️ Next 10s", key='bp_next_10s'):
+                        window = 10.0
+                        new_start = min(float(time[-1]) - window, st.session_state.bp_region_start + window)
+                        new_end = min(float(time[-1]), st.session_state.bp_region_end + window)
+                        st.session_state.bp_region_start = new_start
+                        st.session_state.bp_region_end = new_end
+                        st.rerun()
+                with col_btn4:
+                    if st.button("⏭️ Last 10s", key='bp_last_10s'):
+                        st.session_state.bp_region_start = max(0.0, float(time[-1]) - 10.0)
+                        st.session_state.bp_region_end = float(time[-1])
+                        st.rerun()
+                with col_btn5:
+                    if st.button("🔄 Reset Range", key='bp_reset_range'):
+                        st.session_state.bp_region_start = 0.0
+                        st.session_state.bp_region_end = min(10.0, float(time[-1]))
+                        st.rerun()
+
+                st.write("**Manual Range Entry:** (Or look at zoomed plot X-axis and enter values)")
                 col1, col2 = st.columns(2)
                 with col1:
                     region_start = st.number_input(
                         "Region Start (s)",
                         min_value=0.0,
                         max_value=float(time[-1]),
-                        value=0.0,
+                        value=float(st.session_state.bp_region_start),
                         step=1.0,
-                        key='bp_region_start'
+                        format="%.2f",
+                        key='bp_region_start_input',
+                        help="Enter the start time from the zoomed plot's X-axis, or use quick buttons above"
                     )
+                    # Update session state
+                    st.session_state.bp_region_start = region_start
                 with col2:
                     region_end = st.number_input(
                         "Region End (s)",
                         min_value=0.0,
                         max_value=float(time[-1]),
-                        value=min(10.0, float(time[-1])),
+                        value=float(st.session_state.bp_region_end),
                         step=1.0,
-                        key='bp_region_end'
+                        format="%.2f",
+                        key='bp_region_end_input',
+                        help="Enter the end time from the zoomed plot's X-axis, or use quick buttons above"
                     )
+                    # Update session state
+                    st.session_state.bp_region_end = region_end
+
+                # Show current range info
+                st.caption(f"Current range: {region_start:.2f}s to {region_end:.2f}s ({region_end - region_start:.2f}s window) | Full signal: {float(time[-1]):.2f}s")
 
                 st.write("**Systolic Peaks:**")
                 col1, col2, col3 = st.columns(3)
