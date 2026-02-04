@@ -119,11 +119,7 @@ def create_signal_plot(time, raw, clean, current_peaks, auto_peaks, signal_name,
                        hr_interpolated=None, hr_bpm=None, quality_continuous=None,
                        selected_quality_metrics=None, quality_data=None, ui_revision='constant',
                        zoom_range=None):
-    """Create 3-panel plot for signal visualization with synchronized zooming
-
-    Args:
-        zoom_range: Optional tuple (start, end) to set the x-axis zoom range in seconds
-    """
+    """Create 3-panel plot for signal visualization with synchronized zooming"""
     deleted_peaks = np.setdiff1d(auto_peaks, current_peaks)
     added_peaks = np.setdiff1d(current_peaks, auto_peaks)
 
@@ -138,7 +134,7 @@ def create_signal_plot(time, raw, clean, current_peaks, auto_peaks, signal_name,
     fig.add_trace(go.Scatter(x=time, y=raw, name='Raw', line=dict(color='#808080', width=1)), row=1, col=1)
     fig.add_trace(go.Scatter(x=time, y=clean, name='Clean', line=dict(color='#00D4FF', width=1)), row=1, col=1)
 
-    # Row 2: Clean with Peaks (and quality on secondary y-axis if available)
+    # Row 2: Clean with Peaks
     fig.add_trace(go.Scatter(x=time, y=clean, name='Signal', line=dict(color='#00D4FF', width=1)), row=2, col=1, secondary_y=False)
 
     if len(current_peaks) > 0:
@@ -148,42 +144,16 @@ def create_signal_plot(time, raw, clean, current_peaks, auto_peaks, signal_name,
             marker=dict(color='#FF4444', size=8, symbol='circle')
         ), row=2, col=1, secondary_y=False)
 
-    if len(deleted_peaks) > 0:
-        fig.add_trace(go.Scatter(
-            x=time[deleted_peaks], y=clean[deleted_peaks],
-            mode='markers', name='Deleted Peaks',
-            marker=dict(color='#FF4444', size=10, symbol='x')
-        ), row=2, col=1, secondary_y=False)
-
-    if len(added_peaks) > 0:
-        fig.add_trace(go.Scatter(
-            x=time[added_peaks], y=clean[added_peaks],
-            mode='markers', name='Added Peaks',
-            marker=dict(color='#00FF00', size=10, symbol='cross')
-        ), row=2, col=1, secondary_y=False)
-
-    # Add selected quality metrics on secondary y-axis
+    # Quality metrics
     if selected_quality_metrics and quality_data:
-        quality_colors = {
-            'quality_templatematch': '#FFA500',
-            'quality_averageqrs': '#FF69B4'
-        }
-        quality_names = {
-            'quality_templatematch': 'Template Match',
-            'quality_averageqrs': 'Average QRS'
-        }
         for i, metric in enumerate(selected_quality_metrics):
             if metric in quality_data and quality_data[metric] is not None:
-                metric_data = quality_data[metric]
-                if isinstance(metric_data, np.ndarray) and len(metric_data) > 0:
-                    color = quality_colors.get(metric, f'hsl({(i*60)%360}, 70%, 60%)')
-                    name = quality_names.get(metric, metric)
-                    fig.add_trace(go.Scatter(
-                        x=time, y=metric_data,
-                        name=name,
-                        line=dict(color=color, width=1.5, dash='dot'),
-                        opacity=0.7
-                    ), row=2, col=1, secondary_y=True)
+                fig.add_trace(go.Scatter(
+                    x=time, y=quality_data[metric],
+                    name=metric,
+                    line=dict(width=1.5, dash='dot'),
+                    opacity=0.7
+                ), row=2, col=1, secondary_y=True)
 
     # Row 3: Heart Rate
     if hr_interpolated is not None:
@@ -193,162 +163,72 @@ def create_signal_plot(time, raw, clean, current_peaks, auto_peaks, signal_name,
             line=dict(color='#FF6B6B', width=2)
         ), row=3, col=1)
 
-    if hr_bpm is not None and len(current_peaks) > 1:
-        # Plot beat-to-beat HR at peak locations (excluding first peak)
-        peak_times = time[current_peaks[1:]]  # Start from second peak
-        fig.add_trace(go.Scatter(
-            x=peak_times, y=hr_bpm,
-            mode='markers',
-            name='Beat-to-Beat HR',
-            marker=dict(color='#FFA500', size=6)
-        ), row=3, col=1)
-
-    # Update axes labels
-    fig.update_xaxes(title_text="Time (s)", row=3, col=1)
-    fig.update_yaxes(title_text="Amplitude", row=1, col=1)
-    fig.update_yaxes(title_text="Amplitude", row=2, col=1, secondary_y=False)
-    fig.update_yaxes(title_text="Quality (0-1)", row=2, col=1, secondary_y=True, range=[0, 1])
-    fig.update_yaxes(title_text="HR (bpm)", row=3, col=1)
-
-    # Synchronize x-axes across all subplots
     fig.update_xaxes(matches='x')
-
-    # Apply zoom range if specified
     if zoom_range is not None:
         fig.update_xaxes(range=[zoom_range[0], zoom_range[1]])
 
-    fig.update_layout(
-        height=800,
-        template='plotly_dark',
-        showlegend=True,
-        hovermode='x unified',
-        uirevision=ui_revision  # Preserve zoom state across updates
-    )
+    fig.update_layout(height=800, template='plotly_dark', showlegend=True, uirevision=ui_revision)
 
     return fig
 
 
-def create_rsp_bp_plot(time, raw, clean, current_peaks, current_troughs, auto_peaks, auto_troughs, signal_name, rate_interpolated=None, rate_bpm=None, map_values=None, ui_revision='constant', zoom_range=None):
-    """Create 3-panel plot for RSP/BP with both peaks and troughs and synchronized zooming
-
-    Args:
-        zoom_range: Optional tuple (start, end) to set the x-axis zoom range in seconds
-    """
-    deleted_peaks = np.setdiff1d(auto_peaks, current_peaks)
-    added_peaks = np.setdiff1d(current_peaks, auto_peaks)
-    deleted_troughs = np.setdiff1d(auto_troughs, current_troughs)
-    added_troughs = np.setdiff1d(current_troughs, auto_troughs)
-
-    # Determine the third panel label based on signal type
+def create_rsp_bp_plot(time, raw, clean, current_peaks, current_troughs, auto_peaks, auto_troughs, 
+                       signal_name, rate_interpolated=None, rate_bpm=None, 
+                       bp_data=None, hr_data=None, ui_revision='constant', 
+                       zoom_range=None, calibration_regions=None):
+    """Create 3 or 4-panel plot for RSP/BP with synchronized zooming"""
+    
+    # 1. Row Configuration
+    n_rows = 4 if signal_name == 'BP' else 3
+    height = 1000 if n_rows == 4 else 800
+    
+    titles = ['Raw vs Filtered', 'Signal with Peaks/Troughs']
     if signal_name == 'BP':
-        third_panel_label = 'Mean Arterial Pressure (MAP)'
-        y_axis_label = 'MAP (mmHg)'
+        titles.extend(['BP Metrics (SBP/MAP/DBP)', 'Heart Rate (from BP)'])
     else:
-        third_panel_label = f'{signal_name} Rate'
-        y_axis_label = 'Rate (bpm)'
+        titles.append(f'{signal_name} Rate')
 
     fig = make_subplots(
-        rows=3, cols=1,
-        subplot_titles=('Raw vs Filtered', 'Signal with Peaks/Troughs', third_panel_label),
-        vertical_spacing=0.1
+        rows=n_rows, cols=1,
+        subplot_titles=titles,
+        vertical_spacing=0.07,
+        shared_xaxes=True
     )
 
-    # Row 1: Raw vs Filtered
+    # --- Row 1: Raw vs Filtered ---
     fig.add_trace(go.Scatter(x=time, y=raw, name='Raw', line=dict(color='#808080', width=1)), row=1, col=1)
     fig.add_trace(go.Scatter(x=time, y=clean, name='Filtered', line=dict(color='#00D4FF', width=1)), row=1, col=1)
 
-    # Row 2: Signal with Peaks/Troughs
+    # --- Row 2: Signal with Peaks/Troughs ---
     fig.add_trace(go.Scatter(x=time, y=clean, name='Signal', line=dict(color='#00D4FF', width=1), showlegend=False), row=2, col=1)
 
     if len(current_peaks) > 0:
-        fig.add_trace(go.Scatter(
-            x=time[current_peaks], y=clean[current_peaks],
-            mode='markers', name='Valid Peaks',
-            marker=dict(color='#FF4444', size=8, symbol='circle')
-        ), row=2, col=1)
-
+        fig.add_trace(go.Scatter(x=time[current_peaks], y=clean[current_peaks], mode='markers', 
+                                 name='Systolic/Inhale', marker=dict(color='#FF4444', size=8)), row=2, col=1)
     if len(current_troughs) > 0:
-        fig.add_trace(go.Scatter(
-            x=time[current_troughs], y=clean[current_troughs],
-            mode='markers', name='Valid Troughs',
-            marker=dict(color='#4444FF', size=8, symbol='circle')
-        ), row=2, col=1)
+        fig.add_trace(go.Scatter(x=time[current_troughs], y=clean[current_troughs], mode='markers', 
+                                 name='Diastolic/Exhale', marker=dict(color='#4444FF', size=8)), row=2, col=1)
 
-    if len(deleted_peaks) > 0:
-        fig.add_trace(go.Scatter(
-            x=time[deleted_peaks], y=clean[deleted_peaks],
-            mode='markers', name='Deleted Peaks',
-            marker=dict(color='#FF4444', size=10, symbol='x')
-        ), row=2, col=1)
-
-    if len(added_peaks) > 0:
-        fig.add_trace(go.Scatter(
-            x=time[added_peaks], y=clean[added_peaks],
-            mode='markers', name='Added Peaks',
-            marker=dict(color='#00FF00', size=10, symbol='cross')
-        ), row=2, col=1)
-
-    if len(deleted_troughs) > 0:
-        fig.add_trace(go.Scatter(
-            x=time[deleted_troughs], y=clean[deleted_troughs],
-            mode='markers', name='Deleted Troughs',
-            marker=dict(color='#4444FF', size=10, symbol='x')
-        ), row=2, col=1)
-
-    if len(added_troughs) > 0:
-        fig.add_trace(go.Scatter(
-            x=time[added_troughs], y=clean[added_troughs],
-            mode='markers', name='Added Troughs',
-            marker=dict(color='#00FFFF', size=10, symbol='cross')
-        ), row=2, col=1)
-
-    # Row 3: Rate (BR for RSP) or MAP (for BP)
-    if signal_name == 'BP' and map_values is not None:
-        # Plot MAP for blood pressure
-        fig.add_trace(go.Scatter(
-            x=time, y=map_values,
-            name='MAP',
-            line=dict(color='#9B59B6', width=2)
-        ), row=3, col=1)
+    # --- Row 3: BP Metrics (SBP/MAP/DBP) or RSP Rate ---
+    if signal_name == 'BP' and bp_data is not None:
+        t_4hz = bp_data['time_4hz']
+        fig.add_trace(go.Scatter(x=t_4hz, y=bp_data['sbp_4hz'], name='SBP', line=dict(color='red', width=1.5)), row=3, col=1)
+        fig.add_trace(go.Scatter(x=t_4hz, y=bp_data['map_4hz'], name='MAP', line=dict(color='green', width=2)), row=3, col=1)
+        fig.add_trace(go.Scatter(x=t_4hz, y=bp_data['dbp_4hz'], name='DBP', line=dict(color='blue', width=1.5)), row=3, col=1)
     elif rate_interpolated is not None:
-        # Plot breathing rate for RSP
-        fig.add_trace(go.Scatter(
-            x=time, y=rate_interpolated,
-            name='Rate Interpolated',
-            line=dict(color='#FF6B6B', width=2)
-        ), row=3, col=1)
+        fig.add_trace(go.Scatter(x=time, y=rate_interpolated, name='Rate Interpolated', line=dict(color='#FF6B6B', width=2)), row=3, col=1)
 
-    if rate_bpm is not None and len(current_troughs) > 1:
-        # Plot rate at trough locations (excluding first trough)
-        trough_times = time[current_troughs[1:]]
-        fig.add_trace(go.Scatter(
-            x=trough_times, y=rate_bpm,
-            mode='markers',
-            name='Breath-to-Breath Rate',
-            marker=dict(color='#FFA500', size=6)
-        ), row=3, col=1)
+    # --- Row 4: Heart Rate (BP only) ---
+    if signal_name == 'BP' and hr_data is not None:
+        fig.add_trace(go.Scatter(x=time, y=hr_data['hr_interpolated'], name='HR from BP', line=dict(color='#FF6B6B', width=2)), row=4, col=1)
 
-    # Update axes labels
-    fig.update_xaxes(title_text="Time (s)", row=3, col=1)
-    fig.update_yaxes(title_text="Amplitude", row=1, col=1)
-    fig.update_yaxes(title_text="Amplitude", row=2, col=1)
-    fig.update_yaxes(title_text=y_axis_label, row=3, col=1)
-
-    # Synchronize x-axes across all subplots
+    # Formatting
     fig.update_xaxes(matches='x')
-
-    # Apply zoom range if specified
     if zoom_range is not None:
         fig.update_xaxes(range=[zoom_range[0], zoom_range[1]])
-
-    fig.update_layout(
-        height=800,
-        template='plotly_dark',
-        showlegend=True,
-        hovermode='x unified',
-        uirevision=ui_revision  # Preserve zoom state across updates
-    )
-
+    
+    fig.update_layout(height=height, template='plotly_dark', showlegend=True, hovermode='x unified', uirevision=ui_revision)
+    fig.update_traces(connectgaps=False)
     return fig
 
 
@@ -1300,6 +1180,7 @@ def main():
 
             with col2:
                 detect_calib = st.checkbox("Detect Calibration Artifacts", value=True, key='bp_calib')
+                
                 if peak_method == 'prominence':
                     prominence = st.number_input("Prominence", min_value=1, max_value=100, value=10, key='bp_prom')
                 else:
@@ -1343,227 +1224,62 @@ def main():
 
                 time = np.arange(len(result['filtered'])) / sampling_rate
 
-                # Calculate continuous MAP values from the BP signal
-                # MAP ≈ DBP + 1/3(SBP - DBP) = DBP + 1/3 * pulse pressure
-                # For continuous signal, we can approximate MAP as: MAP = (2*DBP + SBP) / 3
-                # Using a simple approximation: MAP ≈ signal * 2/3 (since waveform oscillates between SBP and DBP)
-                # Better approach: Calculate MAP from the actual waveform
+                # --- 1. Calculate Aligned 4Hz BP Metrics & Derived HR ---
                 from metrics.blood_pressure import calculate_bp_metrics
-                current_bp_metrics = calculate_bp_metrics(
+                from metrics.ecg import calculate_hr
+                
+                bp_data_4hz = calculate_bp_metrics(
                     result['filtered'],
                     result['current_peaks'],
-                    result['current_troughs']
+                    result['current_troughs'],
+                    sampling_rate 
                 )
-                # Create continuous MAP by interpolating between cardiac cycles
-                if len(result['current_peaks']) > 0 and len(result['current_troughs']) > 0:
-                    # Calculate MAP for each cardiac cycle: MAP = DBP + 1/3(SBP - DBP)
-                    # Get min cycles
-                    min_cycles = min(len(result['current_peaks']), len(result['current_troughs']))
-                    if min_cycles > 0:
-                        # Get peak and trough values
-                        sbp_values = result['filtered'][result['current_peaks'][:min_cycles]]
-                        dbp_values = result['filtered'][result['current_troughs'][:min_cycles]]
-                        map_cycle = dbp_values + (sbp_values - dbp_values) / 3
 
-                        # Create time points for interpolation (use trough times)
-                        map_times = time[result['current_troughs'][:min_cycles]]
+                hr_from_bp = calculate_hr(
+                    result['current_peaks'],
+                    sampling_rate,
+                    len(result['filtered']),
+                    rate_method=st.session_state.bp_params.get('rate_method', 'monotone_cubic')
+                )
 
-                        # Interpolate MAP across the entire signal
-                        map_interpolated = np.interp(time, map_times, map_cycle)
-                    else:
-                        map_interpolated = np.full(len(time), current_bp_metrics.get('mean_mbp', 0))
-                else:
-                    map_interpolated = np.zeros(len(time))
-
-                # Initialize region range in session state if not exists (needed before plotting)
+                # Zoom initialization
                 if 'bp_region_start' not in st.session_state:
                     st.session_state.bp_region_start = 0.0
                 if 'bp_region_end' not in st.session_state:
                     st.session_state.bp_region_end = min(10.0, float(time[-1]))
 
-                # Get zoom range from session state
                 bp_zoom = (st.session_state.bp_region_start, st.session_state.bp_region_end)
 
+                # --- 2. Generate Figure ---
                 fig = create_rsp_bp_plot(
                     time, result['raw'], result['filtered'],
                     result['current_peaks'], result['current_troughs'],
                     result['auto_peaks'], result['auto_troughs'],
                     'BP',
-                    map_values=map_interpolated,
-                    ui_revision='bp_plot',  # Preserve zoom state
-                    zoom_range=bp_zoom  # Apply zoom from region inputs
+                    bp_data=bp_data_4hz,
+                    hr_data=hr_from_bp,
+                    ui_revision='bp_plot',
+                    zoom_range=bp_zoom
                 )
-
+                
+                # Calibration Artifact Sidebar Info
+                calib = st.session_state.bp_result.get('calibration_artifacts')
+                if calib:
+                    st.sidebar.write(f"Artifacts found: {len(calib.get('starts', []))}")
+                
                 st.plotly_chart(fig, use_container_width=True)
 
-                # Drag-based editing interface
-                st.subheader("Drag-Based Blood Pressure Editing")
-
-                # Quick navigation buttons
-                st.write("**Quick Range Selection:**")
-                col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
-                with col_btn1:
-                    if st.button("⏮️ First 10s", key='bp_first_10s'):
-                        st.session_state.bp_region_start = 0.0
-                        st.session_state.bp_region_end = min(10.0, float(time[-1]))
-                        st.rerun()
-                with col_btn2:
-                    if st.button("◀️ Previous 10s", key='bp_prev_10s'):
-                        window = 10.0
-                        new_start = max(0.0, st.session_state.bp_region_start - window)
-                        new_end = max(window, st.session_state.bp_region_end - window)
-                        st.session_state.bp_region_start = new_start
-                        st.session_state.bp_region_end = min(new_end, float(time[-1]))
-                        st.rerun()
-                with col_btn3:
-                    if st.button("▶️ Next 10s", key='bp_next_10s'):
-                        window = 10.0
-                        new_start = min(float(time[-1]) - window, st.session_state.bp_region_start + window)
-                        new_end = min(float(time[-1]), st.session_state.bp_region_end + window)
-                        st.session_state.bp_region_start = new_start
-                        st.session_state.bp_region_end = new_end
-                        st.rerun()
-                with col_btn4:
-                    if st.button("⏭️ Last 10s", key='bp_last_10s'):
-                        st.session_state.bp_region_start = max(0.0, float(time[-1]) - 10.0)
-                        st.session_state.bp_region_end = float(time[-1])
-                        st.rerun()
-                with col_btn5:
-                    if st.button("🔄 Reset Range", key='bp_reset_range'):
-                        st.session_state.bp_region_start = 0.0
-                        st.session_state.bp_region_end = min(10.0, float(time[-1]))
-                        st.rerun()
-
-                st.write("**Manual Range Entry:** (Or look at zoomed plot X-axis and enter values)")
-                col1, col2 = st.columns(2)
-                with col1:
-                    region_start = st.number_input(
-                        "Region Start (s)",
-                        min_value=0.0,
-                        max_value=float(time[-1]),
-                        value=float(st.session_state.bp_region_start),
-                        step=1.0,
-                        format="%.2f",
-                        key='bp_region_start_input',
-                        help="Enter the start time from the zoomed plot's X-axis, or use quick buttons above"
-                    )
-                    # Update session state
-                    st.session_state.bp_region_start = region_start
-                with col2:
-                    region_end = st.number_input(
-                        "Region End (s)",
-                        min_value=0.0,
-                        max_value=float(time[-1]),
-                        value=float(st.session_state.bp_region_end),
-                        step=1.0,
-                        format="%.2f",
-                        key='bp_region_end_input',
-                        help="Enter the end time from the zoomed plot's X-axis, or use quick buttons above"
-                    )
-                    # Update session state
-                    st.session_state.bp_region_end = region_end
-
-                # Show current range info
-                st.caption(f"Current range: {region_start:.2f}s to {region_end:.2f}s ({region_end - region_start:.2f}s window) | Full signal: {float(time[-1]):.2f}s")
-
-                st.write("**Systolic Peaks:**")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    if st.button("➕ Add Systolic Peaks", type="primary", key='bp_add_peaks_btn', use_container_width=True):
-                        from utils import peak_editing
-                        st.session_state.bp_result['current_peaks'] = peak_editing.add_peaks_in_range(
-                            result['filtered'], result['current_peaks'], region_start, region_end, sampling_rate, min_distance_seconds=0.5
-                        )
-                        st.rerun()
-                with col2:
-                    if st.button("➖ Remove Systolic Peaks", type="secondary", key='bp_remove_peaks_btn', use_container_width=True):
-                        from utils import peak_editing
-                        st.session_state.bp_result['current_peaks'] = peak_editing.erase_peaks_in_range(
-                            result['current_peaks'], region_start, region_end, sampling_rate
-                        )
-                        st.rerun()
-                with col3:
-                    if st.button("🔄 Reset Systolic", key='bp_reset_peaks_btn', use_container_width=True):
-                        st.session_state.bp_result['current_peaks'] = result['auto_peaks'].copy()
-                        st.rerun()
-
-                st.write("**Diastolic Troughs:**")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    if st.button("➕ Add Diastolic Troughs", type="primary", key='bp_add_troughs_btn', use_container_width=True):
-                        from utils import peak_editing
-                        st.session_state.bp_result['current_troughs'] = peak_editing.add_troughs_in_range(
-                            result['filtered'], result['current_troughs'], region_start, region_end, sampling_rate, min_distance_seconds=0.5
-                        )
-                        st.rerun()
-                with col2:
-                    if st.button("➖ Remove Diastolic Troughs", type="secondary", key='bp_remove_troughs_btn', use_container_width=True):
-                        from utils import peak_editing
-                        st.session_state.bp_result['current_troughs'] = peak_editing.erase_troughs_in_range(
-                            result['current_troughs'], region_start, region_end, sampling_rate
-                        )
-                        st.rerun()
-                with col3:
-                    if st.button("🔄 Reset Diastolic", key='bp_reset_troughs_btn', use_container_width=True):
-                        st.session_state.bp_result['current_troughs'] = result['auto_troughs'].copy()
-                        st.rerun()
-
-                # Single peak/trough editing
-                with st.expander("✏️ Single Peak/Trough Editing (Advanced)"):
-                    st.write("Add or remove individual systolic/diastolic events at specific times.")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        single_time = st.number_input("Time (seconds)", min_value=0.0, max_value=float(time[-1]), value=0.0, step=0.1, key='bp_single_time')
-
-                    st.write("**Systolic Peaks:**")
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        if st.button("Add Systolic at Time", key='bp_single_add_peak'):
-                            from utils import peak_editing
-                            st.session_state.bp_result['current_peaks'] = peak_editing.add_peak(
-                                result['filtered'], result['current_peaks'], single_time, sampling_rate
-                            )
-                            st.rerun()
-                    with col_b:
-                        if st.button("Delete Systolic at Time", key='bp_single_del_peak'):
-                            from utils import peak_editing
-                            st.session_state.bp_result['current_peaks'] = peak_editing.delete_peak(
-                                result['current_peaks'], single_time, sampling_rate
-                            )
-                            st.rerun()
-
-                    st.write("**Diastolic Troughs:**")
-                    col_a, col_b = st.columns(2)
-                    with col_a:
-                        if st.button("Add Diastolic at Time", key='bp_single_add_trough'):
-                            from utils import peak_editing
-                            st.session_state.bp_result['current_troughs'] = peak_editing.add_trough(
-                                result['filtered'], result['current_troughs'], single_time, sampling_rate
-                            )
-                            st.rerun()
-                    with col_b:
-                        if st.button("Delete Diastolic at Time", key='bp_single_del_trough'):
-                            from utils import peak_editing
-                            st.session_state.bp_result['current_troughs'] = peak_editing.delete_trough(
-                                result['current_troughs'], single_time, sampling_rate
-                            )
-                            st.rerun()
-
+                # --- 3. Statistics Section ---
                 st.subheader("Statistics")
-
-                # Recalculate BP metrics based on current peaks/troughs
-                from metrics.blood_pressure import calculate_bp_metrics
-                current_bp_metrics = calculate_bp_metrics(result['filtered'], result['current_peaks'], result['current_troughs'])
-
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.metric("Final Cardiac Cycles", min(len(result['current_peaks']), len(result['current_troughs'])))
                 with col2:
-                    st.metric("Mean SBP", f"{current_bp_metrics['mean_sbp']:.1f} mmHg")
+                    st.metric("Mean SBP", f"{bp_data_4hz['mean_sbp']:.1f} mmHg")
                 with col3:
-                    st.metric("Mean DBP", f"{current_bp_metrics['mean_dbp']:.1f} mmHg")
+                    st.metric("Mean DBP", f"{bp_data_4hz['mean_dbp']:.1f} mmHg")
                 with col4:
-                    st.metric("Mean MAP", f"{current_bp_metrics['mean_mbp']:.1f} mmHg")
+                    st.metric("Mean MAP", f"{bp_data_4hz['mean_mbp']:.1f} mmHg")
 
         tab_idx += 1
 
@@ -2183,113 +1899,46 @@ def main():
     
         tab_idx += 1
 
-    with tab_objects[tab_idx]:
+    # --- EXPORT TAB ---
+    with tab_objects[-1]:
         st.header("Export Data")
 
         output_path = st.text_input(
             "Output Path",
             value=config.OUTPUT_BASE_PATH,
-            help="Base output directory. Files will be saved to {output_path}/{participant}/{session}/"
+            help="Base output directory."
         )
 
-        processed_signals = []
-        if st.session_state.ecg_result is not None:
-            processed_signals.append("ECG")
-        if st.session_state.rsp_result is not None:
-            processed_signals.append("RSP")
-        if st.session_state.ppg_result is not None:
-            processed_signals.append("PPG")
-        if st.session_state.bp_result is not None:
-            processed_signals.append("Blood Pressure")
+        processed_signals = [s for s in ["ecg", "rsp", "ppg", "bp"] if st.session_state.get(f"{s}_result")]
 
-        if len(processed_signals) == 0:
-            st.warning("No signals have been processed yet. Process at least one signal before exporting.")
+        if not processed_signals:
+            st.warning("No signals have been processed yet.")
         else:
-            st.success(f"Processed signals ready for export: {', '.join(processed_signals)}")
+            st.success(f"Signals ready: {', '.join(processed_signals)}")
 
             if st.button("Export All Signals", type="primary"):
-                results_dict = {}
-                params_dict = {}
-
-                if st.session_state.ecg_result is not None:
-                    # Recalculate HR based on current peaks before export
-                    from metrics.ecg import calculate_hr
-                    ecg_result = st.session_state.ecg_result.copy()
-                    updated_hr = calculate_hr(
-                        ecg_result['current_r_peaks'],
-                        sampling_rate,
-                        len(ecg_result['clean']),
-                        rate_method=st.session_state.ecg_params.get('rate_method', 'monotone_cubic')
-                    )
-                    ecg_result.update(updated_hr)
-                    results_dict['ecg'] = ecg_result
-                    params_dict['ecg'] = st.session_state.ecg_params
-
-                if st.session_state.rsp_result is not None:
-                    # Recalculate BR based on current troughs before export
-                    from metrics.rsp import calculate_breathing_rate
-                    rsp_result = st.session_state.rsp_result.copy()
-                    updated_br = calculate_breathing_rate(
-                        rsp_result['current_troughs'],
-                        sampling_rate,
-                        len(rsp_result['clean']),
-                        rate_method=st.session_state.rsp_params.get('rate_method', 'monotone_cubic')
-                    )
-                    rsp_result.update(updated_br)
-                    results_dict['rsp'] = rsp_result
-                    params_dict['rsp'] = st.session_state.rsp_params
-
-                if st.session_state.ppg_result is not None:
-                    # Recalculate HR based on current peaks before export
-                    from metrics.ppg import calculate_hr_from_ppg
-                    ppg_result = st.session_state.ppg_result.copy()
-                    updated_hr = calculate_hr_from_ppg(
-                        ppg_result['current_peaks'],
-                        sampling_rate,
-                        len(ppg_result['clean']),
-                        rate_method=st.session_state.ppg_params.get('rate_method', 'monotone_cubic')
-                    )
-                    ppg_result.update(updated_hr)
-                    results_dict['ppg'] = ppg_result
-                    params_dict['ppg'] = st.session_state.ppg_params
+                results_dict, params_dict = {}, {}
 
                 if st.session_state.bp_result is not None:
-                    # Recalculate BP metrics based on current peaks/troughs before export
                     from metrics.blood_pressure import calculate_bp_metrics
+                    from metrics.ecg import calculate_hr
                     bp_result = st.session_state.bp_result.copy()
-                    updated_metrics = calculate_bp_metrics(
-                        bp_result['filtered'],
-                        bp_result['current_peaks'],
-                        bp_result['current_troughs']
-                    )
-                    bp_result.update(updated_metrics)
+                    
+                    metrics = calculate_bp_metrics(bp_result['filtered'], bp_result['current_peaks'], bp_result['current_troughs'], sampling_rate)
+                    hr = calculate_hr(bp_result['current_peaks'], sampling_rate, len(bp_result['filtered']))
+                    
+                    bp_result.update(metrics)
+                    bp_result['hr_from_bp'] = hr['hr_interpolated']
                     results_dict['bp'] = bp_result
                     params_dict['bp'] = st.session_state.bp_params
 
+                # Create files
                 df = export.create_combined_dataframe(results_dict, sampling_rate)
                 metadata = export.create_metadata_json(results_dict, params_dict, sampling_rate)
-
-                paths = export.export_physio_data(
-                    output_path,
-                    st.session_state.participant,
-                    st.session_state.session,
-                    st.session_state.task,
-                    df,
-                    metadata
-                )
+                paths = export.export_physio_data(output_path, st.session_state.participant, st.session_state.session, st.session_state.task, df, metadata)
 
                 st.success("Export complete!")
-                st.info(f"""
-                **CSV**: `{paths['csv_path']}`
-                **JSON**: `{paths['json_path']}`
-                """)
-
-                with st.expander("Preview CSV (first 10 rows)"):
-                    st.dataframe(df.head(10))
-
-                with st.expander("Preview JSON Metadata"):
-                    st.json(metadata)
-
+                st.info(f"**CSV**: `{paths['csv_path']}`")
 
 if __name__ == "__main__":
     main()

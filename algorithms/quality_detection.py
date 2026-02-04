@@ -157,7 +157,7 @@ def detect_calibration_artifacts(signal, fs, thr_norm=0.03, min_dur_s=2.0,
             'signal_lp': signal_lp,
             'threshold': thr_plot
         }
-
+# --- DELETE THIS OLD SECTION ---
     pad_n = int(round(pad_s * fs))
     starts_p = []
     ends_p = []
@@ -169,6 +169,21 @@ def detect_calibration_artifacts(signal, fs, thr_norm=0.03, min_dur_s=2.0,
             e_p = min(n - 1, e_p + pad_n)
         starts_p.append(s_p)
         ends_p.append(e_p)
+    # -------------------------------
+
+
+    pad_n = int(round(pad_s * fs))
+    mask = np.zeros(n, dtype=bool)
+    for s, e in zip(starts_dp, ends_dp):
+        s_pad = max(0, s - pad_n)
+        e_pad = min(n - 1, e + pad_n)
+        mask[s_pad : e_pad + 1] = True
+
+    # This creates clean, non-overlapping starts and ends
+    d = np.diff(mask.astype(np.int8), prepend=0, append=0)
+    starts_p = np.where(d == 1)[0]
+    ends_p = np.where(d == -1)[0] - 1
+    # ++++++++++++++++++++++++++++++++++++++
 
     return {
         'starts': np.asarray(starts_p, dtype=int),
@@ -178,7 +193,6 @@ def detect_calibration_artifacts(signal, fs, thr_norm=0.03, min_dur_s=2.0,
         'signal_lp': signal_lp,
         'threshold': thr_plot
     }
-
 
 def detect_high_derivative_regions(dp_plot, fs, thr=0.95, min_dur_s=0.15, pad_s=0.01):
     """

@@ -128,63 +128,31 @@ def detect_bp_peaks(signal, sampling_rate, method='delineator', prominence=10):
     }
 
 
-def calculate_bp_metrics(signal, peaks, troughs):
-    """
-    Calculate blood pressure metrics from peaks and troughs
-
-    Parameters
-    ----------
-    signal : array
-        Filtered blood pressure signal
-    peaks : array
-        Systolic peak indices
-    troughs : array
-        Diastolic trough indices
-
-    Returns
-    -------
-    dict
-        Dictionary containing:
-        - sbp: Systolic blood pressure at each peak
-        - dbp: Diastolic blood pressure at each trough
-        - mbp: Mean arterial pressure (calculated as DBP + (SBP-DBP)/3)
-        - sbp_signal: Systolic pressure as continuous signal (forward-filled)
-        - dbp_signal: Diastolic pressure as continuous signal (forward-filled)
-        - mbp_signal: Mean arterial pressure as continuous signal
-        - mean_sbp: Mean systolic pressure
-        - mean_dbp: Mean diastolic pressure
-        - mean_mbp: Mean arterial pressure
-    """
-    sbp = signal[peaks] if len(peaks) > 0 else np.array([])
-    dbp = signal[troughs] if len(troughs) > 0 else np.array([])
-
-    sbp_signal = np.full_like(signal, np.nan, dtype=float)
-    dbp_signal = np.full_like(signal, np.nan, dtype=float)
-
-    if len(peaks) > 0:
-        sbp_signal[peaks] = sbp
-        sbp_signal = np.array([sbp_signal[i] if not np.isnan(sbp_signal[i]) else sbp_signal[i-1] if i > 0 else np.nan for i in range(len(sbp_signal))])
-
-    if len(troughs) > 0:
-        dbp_signal[troughs] = dbp
-        dbp_signal = np.array([dbp_signal[i] if not np.isnan(dbp_signal[i]) else dbp_signal[i-1] if i > 0 else np.nan for i in range(len(dbp_signal))])
-
-    mbp_signal = np.where(
-        ~np.isnan(dbp_signal) & ~np.isnan(sbp_signal),
-        dbp_signal + (sbp_signal - dbp_signal) / 3,
-        np.nan
-    )
-
+def calculate_bp_metrics(signal, peaks, troughs, sampling_rate, target_fs=4.0):
+    time = np.arange(len(signal)) / sampling_rate
+    duration = time[-1]
+    
+    # New time grid at 4Hz
+    time_4hz = np.linspace(0, duration, int(duration * target_fs))
+    
+    sbp_values = signal[peaks]
+    dbp_values = signal[troughs]
+    
+    # Interpolate to 4Hz grid
+    sbp_4hz = np.interp(time_4hz, time[peaks], sbp_values)
+    dbp_4hz = np.interp(time_4hz, time[troughs], dbp_values)
+    
+    # Calculate MAP on the 4Hz grid
+    map_4hz = dbp_4hz + (sbp_4hz - dbp_4hz) / 3
+    
     return {
-        'sbp': sbp,
-        'dbp': dbp,
-        'mbp': dbp + (sbp - dbp) / 3 if len(sbp) > 0 and len(dbp) > 0 else np.array([]),
-        'sbp_signal': sbp_signal,
-        'dbp_signal': dbp_signal,
-        'mbp_signal': mbp_signal,
-        'mean_sbp': np.nanmean(sbp) if len(sbp) > 0 else 0.0,
-        'mean_dbp': np.nanmean(dbp) if len(dbp) > 0 else 0.0,
-        'mean_mbp': np.nanmean(dbp + (sbp - dbp) / 3) if len(sbp) > 0 and len(dbp) > 0 else 0.0
+        'time_4hz': time_4hz,
+        'sbp_4hz': sbp_4hz,
+        'dbp_4hz': dbp_4hz,
+        'map_4hz': map_4hz,
+        'mean_sbp': np.mean(sbp_values),
+        'mean_dbp': np.mean(dbp_values),
+        'mean_mbp': np.mean(map_4hz)
     }
 
 
@@ -256,9 +224,9 @@ def process_bp(signal, sampling_rate, params):
         calib_result = detect_calibration_artifacts(
             signal,
             sampling_rate,
-            thr_norm=params.get('calibration_threshold', 0.03),
-            min_dur_s=params.get('calibration_min_duration', 2.0),
-            pad_s=params.get('calibration_padding', 0.1)
+            thr_norm=params.get('calibration_threshold', 1),
+            min_dur_s=params.get('calibration_min_duration', 1.0),
+            pad_s=params.get('calibration_padding', 20)
         )
         result['calibration_artifacts'] = calib_result
         result['quality_dp'] = calib_result['dp_plot']
@@ -289,7 +257,7 @@ def process_bp(signal, sampling_rate, params):
     result['n_peaks'] = len(peaks)
     result['n_troughs'] = len(troughs)
 
-    bp_metrics = calculate_bp_metrics(bp_filtered, peaks, troughs)
+    bp_metrics = calculate_bp_metrics(bp_filtered, peaks, troughs,sampling_rate)
     result.update(bp_metrics)
 
     return result

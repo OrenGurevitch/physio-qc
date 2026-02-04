@@ -27,7 +27,7 @@ SIGNAL_PATTERNS = {
     'ecg': ['ecg', 'ekg', 'cardiac', 'heart'],
     'rsp': ['rsp', 'resp', 'respiratory', 'breathing', 'breath'],
     'ppg': ['ppg', 'pleth', 'pulse', 'photoplethysmography'],
-    'bp': ['bp', 'blood_pressure', 'arterial_pressure', 'abp', 'art', 'ami', 'hlt', 'a10'],
+    'bp': ['bp', 'blood_pressure', 'arterial_pressure', 'abp', 'art', 'a10' ],
     'etco2': ['co2(mmhg)', 'co2', 'etco2', 'end_tidal_co2', 'carbon_dioxide'],
     'eto2': ['o2(mmhg)', 'o2', 'eto2', 'end_tidal_o2', 'oxygen']
 }
@@ -207,9 +207,9 @@ DEFAULT_BP_PARAMS = {
     'peak_method': 'delineator',
     'prominence': 10,
     'detect_calibration': True,
-    'calibration_threshold': 0.03,
-    'calibration_min_duration': 2.0,
-    'calibration_padding': 0.1,
+    'calibration_threshold': 0.1,
+    'calibration_min_duration': 1.0,
+    'calibration_padding': 0.4,
     'noise_threshold': 0.95,
     'filter_type': 'butterworth',
     'lowcut': 0.5,
