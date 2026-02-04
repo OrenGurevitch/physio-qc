@@ -27,7 +27,9 @@ SIGNAL_PATTERNS = {
     'ecg': ['ecg', 'ekg', 'cardiac', 'heart'],
     'rsp': ['rsp', 'resp', 'respiratory', 'breathing', 'breath'],
     'ppg': ['ppg', 'pleth', 'pulse', 'photoplethysmography'],
-    'bp': ['bp', 'blood_pressure', 'arterial_pressure', 'abp', 'art', 'ami', 'hlt', 'a10']
+    'bp': ['bp', 'blood_pressure', 'arterial_pressure', 'abp', 'art', 'ami', 'hlt', 'a10'],
+    'etco2': ['co2(mmhg)', 'co2', 'etco2', 'end_tidal_co2', 'carbon_dioxide'],
+    'eto2': ['o2(mmhg)', 'o2', 'eto2', 'end_tidal_o2', 'oxygen']
 }
 
 # =============================================================================
@@ -271,6 +273,54 @@ PEAK_ENCODING = {
     'MANUALLY_ADDED': 2,
     'NO_PEAK': 0,
     'DELETED': -1
+}
+
+# =============================================================================
+# ETCO2 CONFIGURATION (End-Tidal CO2)
+# =============================================================================
+
+ETCO2_PEAK_METHODS = [
+    'diff',        # Derivative-based with curvature filtering (recommended)
+    'prominence'   # Scipy prominence-based detection
+]
+
+ETCO2_PEAK_METHOD_INFO = {
+    'diff': 'Derivative zero-crossings with negative curvature filtering. Detects peaks where derivative transitions from positive to negative. More robust to baseline drift.',
+    'prominence': 'Scipy prominence-based peak detection. Simpler but may be sensitive to noise and baseline variations.'
+}
+
+DEFAULT_ETCO2_PARAMS = {
+    'peak_method': 'diff',
+    'min_peak_distance_s': 2.0,      # Minimum 2s between breaths (30 breaths/min max)
+    'min_prominence': 1.0,            # Minimum 1 mmHg prominence
+    'sg_window_s': 0.3,               # 300ms Savitzky-Golay smoothing window
+    'sg_poly': 2,                     # Quadratic polynomial for S-G filter
+    'prom_adapt': False,              # Disable adaptive prominence by default
+    'smooth_peaks': 5                 # Median filter over 5 peaks
+}
+
+# =============================================================================
+# ETO2 CONFIGURATION (End-Tidal O2)
+# =============================================================================
+
+ETO2_TROUGH_METHODS = [
+    'diff',        # Derivative-based with curvature filtering (recommended)
+    'prominence'   # Scipy prominence-based detection on inverted signal
+]
+
+ETO2_TROUGH_METHOD_INFO = {
+    'diff': 'Derivative zero-crossings with positive curvature filtering. Detects troughs (minima) where derivative transitions from negative to positive. More robust to baseline drift.',
+    'prominence': 'Scipy prominence-based trough detection on inverted signal. Simpler but may be sensitive to noise.'
+}
+
+DEFAULT_ETO2_PARAMS = {
+    'trough_method': 'diff',
+    'min_trough_distance_s': 3.0,    # Minimum 3s between troughs (slower than peaks)
+    'min_prominence': 1.0,            # Minimum 1 mmHg prominence (on inverted signal)
+    'sg_window_s': 0.2,               # 200ms Savitzky-Golay smoothing window
+    'sg_poly': 2,                     # Quadratic polynomial for S-G filter
+    'prom_adapt': False,              # Disable adaptive prominence by default
+    'smooth_troughs': 5               # Median filter over 5 troughs
 }
 
 # =============================================================================

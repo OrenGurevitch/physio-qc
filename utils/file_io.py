@@ -9,6 +9,7 @@ import pandas as pd
 import bioread
 
 import config
+from utils.conversions import convert_gas_channels
 
 
 def scan_data_directory(base_path):
@@ -152,6 +153,9 @@ def load_acq_file(file_path):
 
     df_raw = pd.DataFrame(channels)
 
+    # Apply gas channel conversions (voltage to mmHg for CO2/O2)
+    df_raw, gas_conversions = convert_gas_channels(df_raw)
+
     signal_mappings = {}
     for col in df_raw.columns:
         signal_type = detect_signal_type(col)
@@ -165,5 +169,6 @@ def load_acq_file(file_path):
         'channels': list(df_raw.columns),
         'signal_mappings': signal_mappings,
         'n_samples': len(df_raw),
-        'duration': len(df_raw) / sampling_rate
+        'duration': len(df_raw) / sampling_rate,
+        'gas_conversions': gas_conversions
     }
