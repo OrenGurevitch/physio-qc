@@ -27,9 +27,10 @@ SIGNAL_PATTERNS = {
     'ecg': ['ecg', 'ekg', 'cardiac', 'heart'],
     'rsp': ['rsp', 'resp', 'respiratory', 'breathing', 'breath'],
     'ppg': ['ppg', 'pleth', 'pulse', 'photoplethysmography'],
+    'spo2': ['spo2', 'sp02', 'oxygen saturation', 'o2sat', 'saturation'],
     'bp': ['bp', 'blood_pressure', 'arterial_pressure', 'abp', 'art', 'a10' ],
     'etco2': ['co2(mmhg)', 'co2', 'etco2', 'end_tidal_co2', 'carbon_dioxide'],
-    'eto2': ['o2(mmhg)', 'o2', 'eto2', 'end_tidal_o2', 'oxygen']
+    'eto2': ['o2(mmhg)', 'o2', 'eto2', 'end_tidal_o2', 'oxygen'],
 }
 
 # =============================================================================
@@ -321,6 +322,29 @@ DEFAULT_ETO2_PARAMS = {
     'sg_poly': 2,                     # Quadratic polynomial for S-G filter
     'prom_adapt': False,              # Disable adaptive prominence by default
     'smooth_troughs': 5               # Median filter over 5 troughs
+}
+
+# =============================================================================
+# SPO2 CONFIGURATION (Oxygen Saturation)
+# =============================================================================
+
+SPO2_CLEANING_METHODS = ['lowpass', 'savgol', 'none']
+
+SPO2_CLEANING_INFO = {
+    'lowpass': 'Butterworth lowpass filter (removes high-frequency noise)',
+    'savgol': 'Savitzky-Golay smoothing filter (preserves signal shape)',
+    'none': 'No cleaning applied - use raw signal'
+}
+
+DEFAULT_SPO2_PARAMS = {
+    'cleaning_method': 'lowpass',
+    'lowpass_cutoff': 0.5,  # Hz - SpO2 changes slowly
+    'filter_order': 2,
+    'sg_window_s': 1.0,
+    'sg_poly': 2,
+    'desaturation_threshold': 90.0,  # % - clinical threshold
+    'desaturation_drop': 3.0,  # % drop from baseline for event
+    'min_event_duration_s': 10.0  # minimum duration for desaturation event
 }
 
 # =============================================================================

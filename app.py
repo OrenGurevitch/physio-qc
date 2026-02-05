@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 
 import config
 from utils.file_io import scan_data_directory, find_file_path, load_acq_file
-from metrics import ecg, rsp, ppg, blood_pressure, etco2, eto2
+from metrics import ecg, rsp, ppg, blood_pressure, etco2, eto2, spo2
 from utils import peak_editing, export
 
 
@@ -95,6 +95,12 @@ def init_session_state():
     if 'eto2_params' not in st.session_state:
         st.session_state.eto2_params = config.DEFAULT_ETO2_PARAMS.copy()
 
+    if 'spo2_result' not in st.session_state:
+        st.session_state.spo2_result = None
+
+    if 'spo2_params' not in st.session_state:
+        st.session_state.spo2_params = config.DEFAULT_SPO2_PARAMS.copy()
+
     # Zoom ranges for each signal type
     if 'ecg_zoom_range' not in st.session_state:
         st.session_state.ecg_zoom_range = None
@@ -113,6 +119,9 @@ def init_session_state():
 
     if 'eto2_zoom_range' not in st.session_state:
         st.session_state.eto2_zoom_range = None
+
+    if 'spo2_zoom_range' not in st.session_state:
+        st.session_state.spo2_zoom_range = None
 
 
 def create_signal_plot(time, raw, clean, current_peaks, auto_peaks, signal_name, sampling_rate,
@@ -317,6 +326,7 @@ def main():
             st.session_state.bp_result = None
             st.session_state.etco2_result = None
             st.session_state.eto2_result = None
+            st.session_state.spo2_result = None
 
             st.success(f"Loaded {file_path}")
 
@@ -350,6 +360,8 @@ def main():
         tabs.append("ETCO2")
     if 'eto2' in detected_signals:
         tabs.append("ETO2")
+    if 'spo2' in detected_signals:
+        tabs.append("SpO2")
     tabs.append("Export")
 
     tab_objects = st.tabs(tabs)
@@ -1897,6 +1909,299 @@ def main():
             else:
                 st.info("👆 Configure parameters above and click 'Process ETO2' to begin")
     
+        tab_idx += 1
+
+    # --- SPO2 TAB ---
+    if 'spo2' in detected_signals:
+        with tab_objects[tab_idx]:
+            st.header("SpO2 (Oxygen Saturation) Processing")
+
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                # Cleaning method selection
+                cleaning_method = st.selectbox(
+                    "Cleaning Method",
+                    config.SPO2_CLEANING_METHODS,
+                    key='spo2_cleaning_method'
+                )
+
+                with st.expander("Method Info"):
+                    st.info(config.SPO2_CLEANING_INFO.get(cleaning_method, "No info available"))
+
+                # Parameters based on method
+                st.subheader("Processing Parameters")
+
+                if cleaning_method == 'lowpass':
+                    col_p1, col_p2 = st.columns(2)
+                    with col_p1:
+                        lowpass_cutoff = st.slider(
+                            "Lowpass Cutoff (Hz)",
+                            min_value=0.1,
+                            max_value=2.0,
+                            value=st.session_state.spo2_params.get('lowpass_cutoff', 0.5),
+                            step=0.1,
+                            key='spo2_lowpass_cutoff',
+                            help="Cutoff frequency for lowpass filter"
+                        )
+                    with col_p2:
+                        filter_order = st.slider(
+                            "Filter Order",
+                            min_value=1,
+                            max_value=5,
+                            value=st.session_state.spo2_params.get('filter_order', 2),
+                            key='spo2_filter_order',
+                            help="Butterworth filter order"
+                        )
+                    sg_window_s = 1.0
+                    sg_poly = 2
+                elif cleaning_method == 'savgol':
+                    col_p1, col_p2 = st.columns(2)
+                    with col_p1:
+                        sg_window_s = st.slider(
+                            "Window Duration (s)",
+                            min_value=0.5,
+                            max_value=5.0,
+                            value=st.session_state.spo2_params.get('sg_window_s', 1.0),
+                            step=0.5,
+                            key='spo2_sg_window',
+                            help="Smoothing window for Savitzky-Golay filter"
+                        )
+                    with col_p2:
+                        sg_poly = st.slider(
+                            "Polynomial Order",
+                            min_value=1,
+                            max_value=5,
+                            value=st.session_state.spo2_params.get('sg_poly', 2),
+                            key='spo2_sg_poly',
+                            help="Polynomial order for S-G filter"
+                        )
+                    lowpass_cutoff = 0.5
+                    filter_order = 2
+                else:
+                    lowpass_cutoff = 0.5
+                    filter_order = 2
+                    sg_window_s = 1.0
+                    sg_poly = 2
+
+                # Desaturation detection parameters
+                with st.expander("Desaturation Detection"):
+                    desaturation_threshold = st.slider(
+                        "Desaturation Threshold (%)",
+                        min_value=80.0,
+                        max_value=95.0,
+                        value=st.session_state.spo2_params.get('desaturation_threshold', 90.0),
+                        step=1.0,
+                        key='spo2_desat_threshold',
+                        help="SpO2 level below which is considered desaturation"
+                    )
+
+                    min_event_duration_s = st.slider(
+                        "Min Event Duration (s)",
+                        min_value=1.0,
+                        max_value=30.0,
+                        value=st.session_state.spo2_params.get('min_event_duration_s', 10.0),
+                        step=1.0,
+                        key='spo2_min_event_duration',
+                        help="Minimum duration for a desaturation event"
+                    )
+
+            with col2:
+                if st.button("Process SpO2", type="primary", key='process_spo2'):
+                    # Update parameters
+                    params = {
+                        'cleaning_method': cleaning_method,
+                        'lowpass_cutoff': lowpass_cutoff,
+                        'filter_order': filter_order,
+                        'sg_window_s': sg_window_s,
+                        'sg_poly': sg_poly,
+                        'desaturation_threshold': desaturation_threshold,
+                        'min_event_duration_s': min_event_duration_s
+                    }
+                    st.session_state.spo2_params.update(params)
+
+                    # Get SpO2 signal
+                    spo2_signal = data['df'][data['signal_mappings']['spo2']].values
+
+                    # Process
+                    with st.spinner("Processing SpO2 signal..."):
+                        result = spo2.process_spo2(
+                            spo2_signal,
+                            sampling_rate,
+                            st.session_state.spo2_params
+                        )
+
+                    if result is not None:
+                        st.session_state.spo2_result = result
+                        metrics = result['metrics']
+                        st.success(f"SpO2 processed: Mean {metrics['mean_spo2']:.1f}%")
+                        st.rerun()
+
+            # Display results if available
+            result = st.session_state.spo2_result
+            if result is not None:
+                st.divider()
+
+                # Metrics row
+                metrics = result['metrics']
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Mean SpO2", f"{metrics['mean_spo2']:.1f}%")
+                with col2:
+                    st.metric("Min SpO2", f"{metrics['min_spo2']:.1f}%")
+                with col3:
+                    st.metric("Time < 90%", f"{metrics['time_below_90']:.1f}s ({metrics['time_below_90_pct']:.1f}%)")
+                with col4:
+                    st.metric("Desaturation Events", f"{metrics['n_desaturation_events']}")
+
+                # Second metrics row
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Max SpO2", f"{metrics['max_spo2']:.1f}%")
+                with col2:
+                    st.metric("Std Dev", f"{metrics['std_spo2']:.2f}%")
+                with col3:
+                    st.metric("Time < 95%", f"{metrics['time_below_95']:.1f}s ({metrics['time_below_95_pct']:.1f}%)")
+                with col4:
+                    st.metric("Desat Index", f"{metrics['desaturation_index']:.1f}/hr")
+
+                # Visualization
+                st.subheader("SpO2 Trace Visualization")
+
+                # Create plotly figure
+                fig = make_subplots(
+                    rows=2, cols=1,
+                    subplot_titles=('Raw vs Cleaned SpO2', 'SpO2 with Thresholds'),
+                    vertical_spacing=0.12,
+                    row_heights=[0.45, 0.55]
+                )
+
+                time = result['time_vector']
+
+                # Row 1: Raw vs Cleaned
+                fig.add_trace(
+                    go.Scatter(
+                        x=time,
+                        y=result['raw_signal'],
+                        name='Raw SpO2',
+                        line=dict(color='#808080', width=1),
+                        mode='lines'
+                    ),
+                    row=1, col=1
+                )
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=time,
+                        y=result['cleaned_signal'],
+                        name='Cleaned SpO2',
+                        line=dict(color='#00D4FF', width=1.5),
+                        mode='lines'
+                    ),
+                    row=1, col=1
+                )
+
+                # Row 2: Cleaned with thresholds and events
+                fig.add_trace(
+                    go.Scatter(
+                        x=time,
+                        y=result['cleaned_signal'],
+                        name='SpO2',
+                        line=dict(color='#00D4FF', width=1.5),
+                        mode='lines'
+                    ),
+                    row=2, col=1
+                )
+
+                # Add threshold lines
+                fig.add_hline(
+                    y=90, line_dash="dash", line_color="red",
+                    annotation_text="90%", row=2, col=1
+                )
+                fig.add_hline(
+                    y=95, line_dash="dash", line_color="yellow",
+                    annotation_text="95%", row=2, col=1
+                )
+
+                # Highlight desaturation events
+                for event_start, event_end, min_val in result['desaturation_events']:
+                    fig.add_vrect(
+                        x0=time[event_start],
+                        x1=time[min(event_end, len(time)-1)],
+                        fillcolor="rgba(255, 0, 0, 0.2)",
+                        layer="below",
+                        line_width=0,
+                        row=2, col=1
+                    )
+
+                # Layout
+                fig.update_xaxes(title_text="Time (s)", row=2, col=1)
+                fig.update_yaxes(title_text="SpO2 (%)", row=1, col=1)
+                fig.update_yaxes(title_text="SpO2 (%)", row=2, col=1, range=[80, 105])
+
+                fig.update_layout(
+                    height=700,
+                    template='plotly_dark',
+                    showlegend=True,
+                    hovermode='x unified'
+                )
+
+                # Apply zoom if set
+                if st.session_state.spo2_zoom_range is not None:
+                    fig.update_xaxes(range=st.session_state.spo2_zoom_range)
+
+                st.plotly_chart(fig, use_container_width=True, key='spo2_plot')
+
+                # Zoom controls
+                with st.expander("Zoom Controls"):
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        region_start = st.number_input(
+                            "Region Start (s)",
+                            min_value=0.0,
+                            max_value=float(result['time_vector'][-1]),
+                            value=0.0,
+                            step=1.0,
+                            key='spo2_region_start'
+                        )
+                    with col2:
+                        region_end = st.number_input(
+                            "Region End (s)",
+                            min_value=0.0,
+                            max_value=float(result['time_vector'][-1]),
+                            value=min(60.0, float(result['time_vector'][-1])),
+                            step=1.0,
+                            key='spo2_region_end'
+                        )
+                    with col3:
+                        st.write("")
+                        st.write("")
+                        if st.button("Zoom to Region", key='spo2_zoom'):
+                            st.session_state.spo2_zoom_range = [region_start, region_end]
+                            st.rerun()
+
+                    if st.session_state.spo2_zoom_range is not None:
+                        if st.button("Reset Zoom", key='spo2_reset_zoom'):
+                            st.session_state.spo2_zoom_range = None
+                            st.rerun()
+
+                # Desaturation events table
+                if result['desaturation_events']:
+                    with st.expander("Desaturation Events"):
+                        events_data = []
+                        for i, (start_idx, end_idx, min_val) in enumerate(result['desaturation_events']):
+                            events_data.append({
+                                'Event': i + 1,
+                                'Start (s)': f"{time[start_idx]:.1f}",
+                                'End (s)': f"{time[min(end_idx, len(time)-1)]:.1f}",
+                                'Duration (s)': f"{(end_idx - start_idx) / sampling_rate:.1f}",
+                                'Min SpO2 (%)': f"{min_val:.1f}"
+                            })
+                        st.dataframe(events_data, use_container_width=True)
+
+            else:
+                st.info("Configure parameters above and click 'Process SpO2' to begin")
+
         tab_idx += 1
 
     # --- EXPORT TAB ---

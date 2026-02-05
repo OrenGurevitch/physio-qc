@@ -163,6 +163,12 @@ def load_acq_file(file_path):
             if signal_type not in signal_mappings:
                 signal_mappings[signal_type] = col
 
+    # Prefer converted mmHg columns over raw voltage columns
+    if 'co2' in gas_conversions:
+        signal_mappings['etco2'] = gas_conversions['co2']
+    if 'o2' in gas_conversions:
+        signal_mappings['eto2'] = gas_conversions['o2']
+
     return {
         'df': df_raw,
         'sampling_rate': sampling_rate,
