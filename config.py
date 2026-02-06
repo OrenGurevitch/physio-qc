@@ -15,6 +15,15 @@ BASE_DATA_PATH = '/export02/projects/LCS/01_physio'
 # Output structure: OUTPUT_BASE_PATH/sub-{id}/ses-{id}/sub-{id}_ses-{id}_task-{task}_physio.{csv,json}
 OUTPUT_BASE_PATH = '/export02/projects/LCS/02_physio_processed'
 
+# Path to spirometry exports (semicolon-delimited text files, typically .csv/.xls)
+SPIROMETRY_DATA_PATH = '/export02/projects/LCS/03_spirometry'
+
+# Session labels where spirometry QC should be displayed
+SPIROMETRY_SESSION_A_ALIASES = ['ses-a', 'a', 'session-a', 'ses-01', 'ses-1', 'session-1']
+
+# Fallback Biopac channel for spirometer waveform (1-based index)
+SPIROMETER_CHANNEL_INDEX = 12
+
 # =============================================================================
 # DATA PARAMETERS
 # =============================================================================
@@ -26,6 +35,7 @@ POWERLINE_FREQUENCIES = [60, 50]  # North America uses 60Hz
 SIGNAL_PATTERNS = {
     'ecg': ['ecg', 'ekg', 'cardiac', 'heart'],
     'rsp': ['rsp', 'resp', 'respiratory', 'breathing', 'breath'],
+    'spirometer': ['spirometer', 'spiro', 'pneumotach', 'respflow', 'maskflow', 'mask_flow'],
     'ppg': ['ppg', 'pleth', 'pulse', 'photoplethysmography'],
     'spo2': ['spo2', 'sp02', 'oxygen saturation', 'o2sat', 'saturation'],
     'bp': ['bp', 'blood_pressure', 'arterial_pressure', 'abp', 'art', 'a10' ],

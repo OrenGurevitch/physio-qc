@@ -163,6 +163,12 @@ def load_acq_file(file_path):
             if signal_type not in signal_mappings:
                 signal_mappings[signal_type] = col
 
+    # Fallback: map spirometer from a fixed Biopac channel index when naming is generic
+    if 'spirometer' not in signal_mappings:
+        channel_idx = getattr(config, 'SPIROMETER_CHANNEL_INDEX', None)
+        if isinstance(channel_idx, int) and 1 <= channel_idx <= len(df_raw.columns):
+            signal_mappings['spirometer'] = df_raw.columns[channel_idx - 1]
+
     # Prefer converted mmHg columns over raw voltage columns
     if 'co2' in gas_conversions:
         signal_mappings['etco2'] = gas_conversions['co2']
